@@ -4,7 +4,7 @@ A hostable and comprehensive SaaS for Atelier clients.
 ## Tech Stack
 - **Backend**: Python, Flask
 - **Frontend**: React.js
-- **Database**: SQLite (via custom StellaDatabase)
+- **Database**: SQLite
 - **Authentication**: Flask Session Management
 - **Image Processing**: PIL (Python Imaging Library)
 - **Rate Limiting**: Flask-Limiter

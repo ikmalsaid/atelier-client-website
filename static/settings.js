@@ -445,78 +445,6 @@ function SettingsPage() {
     });
   };
 
-  // Add new useEffect to fetch theme settings on component mount
-  useEffect(() => {
-    // Fetch theme settings
-    fetch('/v1/user/settings/theme')
-      .then(res => res.json())
-      .then(data => {
-        setThemeColor(data.color);
-        setThemeFont(data.font);
-        document.documentElement.style.setProperty('--theme-color', data.color);
-        document.documentElement.style.setProperty('--theme-font', data.font);
-      })
-      .catch(error => console.error('Error fetching theme:', error));
-  }, []);
-
-  // Update theme handler to include both color and font
-  const handleThemeUpdate = (e) => {
-    e.preventDefault();
-    setIsProcessing(true);
-    
-    fetch('/v1/user/settings/theme/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        color: themeColor,
-        font: themeFont 
-      }),
-    })
-    .then(response => response.json())
-    .then(data => {
-      setThemeMessage(data.message);
-      if (data.success) {
-        document.documentElement.style.setProperty('--theme-color', themeColor);
-        document.documentElement.style.setProperty('--theme-font', themeFont);
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      setThemeMessage('An error occurred. Please try again.');
-    })
-    .finally(() => setIsProcessing(false));
-  };
-
-  // Add reset handler for both color and font
-  const handleResetTheme = (e) => {
-    e.preventDefault();
-    setIsProcessing(true);
-    
-    fetch('/v1/user/settings/theme/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        color: DEFAULT_THEME_COLOR,
-        font: DEFAULT_THEME_FONT 
-      }),
-    })
-    .then(response => response.json())
-    .then(data => {
-      setThemeMessage(data.message);
-      if (data.success) {
-        setThemeColor(DEFAULT_THEME_COLOR);
-        setThemeFont(DEFAULT_THEME_FONT);
-        document.documentElement.style.setProperty('--theme-color', DEFAULT_THEME_COLOR);
-        document.documentElement.style.setProperty('--theme-font', DEFAULT_THEME_FONT);
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      setThemeMessage('An error occurred. Please try again.');
-    })
-    .finally(() => setIsProcessing(false));
-  };
-
   // Loading State
   if (isLoading) return <LoadingSpinner />;
 
@@ -549,75 +477,10 @@ function SettingsPage() {
 
       {/* Main Content */}
       <h1 className="rainbow-text">Settings for {username}</h1>
-      <div className="copyright">© 2023-2024 Ikmal Said</div>
+      <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
 
       {/* Settings Container */}
       <div className="settings-container">
-
-        {/* Theme Section */}
-        <div className="settings-section">
-          <h2>Theme Settings</h2>
-          <form onSubmit={handleThemeUpdate}>
-            <div className="theme-settings-container">
-              {/* Color Picker */}
-              <div className="setting-group">
-                <div className="message-hint">Color your UI just the way you like it.</div>
-                <div className="color-picker-container">
-                  <input
-                    type="color"
-                    value={themeColor}
-                    onChange={(e) => setThemeColor(e.target.value)}
-                    className="color-picker"
-                  />
-                  <div className="current-color">
-                    <span style={{ backgroundColor: themeColor }}></span>
-                    {themeColor}
-                  </div>
-                </div>
-              </div>
-
-              {/* Font Selector */}
-              <div className="setting-group">
-                <div className="message-hint">An ideal font enhances readability and aesthetics.</div>
-                <select
-                  value={themeFont}
-                  onChange={(e) => setThemeFont(e.target.value)}
-                  className="select-container"
-                >
-                  {AVAILABLE_FONTS.map(font => (
-                    <option key={font} value={font} style={{ fontFamily: font }}>
-                      {font}
-                    </option>
-                  ))}
-                </select>
-                <div className="font-preview" style={{ fontFamily: themeFont }}>
-                  Stella Web Services by Ikmal Said
-                </div>
-              </div>
-            </div>
-
-            <div className="button-group">
-              <button 
-                type="submit" 
-                disabled={isProcessing}
-                className={isProcessing ? 'processing' : ''}
-              >
-                Update Theme
-              </button>
-              <button 
-                type="button"
-                onClick={handleResetTheme}
-                disabled={isProcessing}
-                className={isProcessing ? 'processing' : ''}
-              >
-                Reset to Default
-              </button>
-            </div>
-          </form>
-          {themeMessage && <div className="message">{themeMessage}</div>}
-        </div>
-
-        <div className="settings-divider"></div>
 
         {/* Username Update Section */}
         <div className="settings-section">

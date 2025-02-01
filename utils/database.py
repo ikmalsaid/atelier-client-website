@@ -4,14 +4,15 @@ import string
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
-class DBase:
-    """Atelier Web Service Database System. Copyright (C) 2024 Ikmal Said. All rights reserved."""
-    def __init__(self, db_name='./db/atelierdb.db'):
+class Database:
+    """Atelier Database System. Copyright (C) 2024 Ikmal Said. All rights reserved."""
+    def __init__(self, db_name='atelierdb.db'):
         """Initialize database connection with specified database name"""
         self.db_name = db_name
         self.create_tables()
-        self.create_default_user()
-        
+        # self.create_default_user() # Uncomment this line to create a default user
+    
+    # Please change the default username and password to your own
     def create_default_user(self, username = 'admin', password = '12345678'):
         """Create default admin user if it doesn't exist"""
         default_recovery_key = self.generate_recovery_key()

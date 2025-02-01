@@ -336,7 +336,7 @@ function TopupPage() {
         text={`Topup for ${username}`} 
         isAnimating={isRainbowAnimating} 
       />
-      <div className="copyright">© 2023-2024 Ikmal Said</div>
+      <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
 
       {/* Topup Container */}
       <div className="topup-container">

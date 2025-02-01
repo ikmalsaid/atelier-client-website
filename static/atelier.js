@@ -86,6 +86,11 @@ class ErrorBoundary extends React.Component {
 // Image Gallery Component
 function ImageGallery({ images, onDownload, onEnlarge }) {
   const getImagePath = (url) => {
+    // If it's already a base64 string, return it directly
+    if (url.startsWith('data:image')) {
+      return url;
+    }
+    // For regular URLs, get the pathname
     try {
       return new URL(url).pathname;
     } catch (e) {
@@ -239,15 +244,6 @@ const EnlargedImage = React.forwardRef(({ images, currentIndex, onClose, onNavig
       .catch(err => console.error('Failed to copy prompt: ', err));
   };
 
-  const getImagePath = (url) => {
-    try {
-      return new URL(url).pathname;
-    } catch (e) {
-      console.error("Invalid URL:", url);
-      return url;
-    }
-  };
-
   const formatCreationTime = (timeString) => {
     return timeString;
   };
@@ -270,7 +266,7 @@ const EnlargedImage = React.forwardRef(({ images, currentIndex, onClose, onNavig
           style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
         >
           <img 
-            src={getImagePath(images[currentIndex].url)}
+            src={images[currentIndex].url}
             alt="Enlarged image"
             loading="lazy"
             decoding="async"
@@ -302,7 +298,7 @@ const EnlargedImage = React.forwardRef(({ images, currentIndex, onClose, onNavig
         <button onClick={onClose} className="icon-button close-button" style={{ zIndex: 2 }} title="Close">
           <i className="fas fa-times"></i>
         </button>
-        <button onClick={() => onDownload(getImagePath(images[currentIndex].url), `image_${currentIndex + 1}.png`)} className="icon-button download-button" style={{ zIndex: 2 }} title="Download image">
+        <button onClick={() => onDownload(images[currentIndex].url, `image_${currentIndex + 1}.png`)} className="icon-button download-button" style={{ zIndex: 2 }} title="Download image">
           <i className="fas fa-download"></i>
         </button>
         
@@ -369,8 +365,8 @@ function Generator() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [size, setSize] = useState(() => sessionStorage.getItem('atelier_size') || '1:1');
-  const [model, setModel] = useState(() => sessionStorage.getItem('atelier_model') || 'Flux.1 S');
-  const [style, setStyle] = useState(() => sessionStorage.getItem('atelier_style') || 'None');
+  const [model, setModel] = useState(() => sessionStorage.getItem('atelier_model') || 'flux-turbo');
+  const [style, setStyle] = useState(() => sessionStorage.getItem('atelier_style') || 'none');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = React.useRef(null);
   const [textareaHeight, setTextareaHeight] = useState('auto');
@@ -385,6 +381,10 @@ function Generator() {
   const negativeTextareaRef = React.useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [seed, setSeed] = useState(() => sessionStorage.getItem('atelier_seed') || '');
+  const [sviLoraOptions, setSviLoraOptions] = useState([]);
+  const [fluxLoraOptions, setFluxLoraOptions] = useState([]);
+  const [sviLora, setSviLora] = useState(() => sessionStorage.getItem('atelier_svi_lora') || 'none');
+  const [fluxLora, setFluxLora] = useState(() => sessionStorage.getItem('atelier_flux_lora') || 'none');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -461,6 +461,28 @@ function Generator() {
       .then(data => setCosts(data))
       .catch(error => console.error('Error fetching costs:', error));
 
+    fetch('/v1/presets/atelier/lora/svi')
+      .then(response => response.json())
+      .then(data => {
+        const options = Array.isArray(data.svi_loras) ? data.svi_loras : [];
+        setSviLoraOptions(options);
+      })
+      .catch(error => {
+        console.error('Error fetching SVI loras:', error);
+        setSviLoraOptions([]);
+      });
+
+    fetch('/v1/presets/atelier/lora/flux')
+      .then(response => response.json())
+      .then(data => {
+        const options = Array.isArray(data.flux_loras) ? data.flux_loras : [];
+        setFluxLoraOptions(options);
+      })
+      .catch(error => {
+        console.error('Error fetching Flux loras:', error);
+        setFluxLoraOptions([]);
+      });
+
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
@@ -507,10 +529,12 @@ function Generator() {
       if (style) updateSessionStorage('style', style);
       if (quantity) updateSessionStorage('quantity', quantity);
       if (seed) updateSessionStorage('seed', seed);
+      if (sviLora) updateSessionStorage('svi_lora', sviLora);
+      if (fluxLora) updateSessionStorage('flux_lora', fluxLora);
     } catch (error) {
       console.error('Error updating session storage:', error);
     }
-  }, [prompt, negativePrompt, images, size, model, style, quantity, seed]);
+  }, [prompt, negativePrompt, images, size, model, style, quantity, seed, sviLora, fluxLora]);
 
   useEffect(() => {
     return () => {
@@ -565,11 +589,13 @@ function Generator() {
                 const formData = new FormData();
                 formData.append('prompt', prompt.trim());
                 formData.append('negative_prompt', negativePrompt.trim());
-                formData.append('size', size);
-                formData.append('model', model);
-                formData.append('style', style);
+                formData.append('image_size', size);
+                formData.append('model_name', model);
+                formData.append('style_name', style);
+                formData.append('lora_svi', sviLora);
+                formData.append('lora_flux', fluxLora);
                 formData.append('quantity', quantity);
-                if (seed.trim()) formData.append('seed', seed.trim());
+                if (seed.trim()) formData.append('image_seed', seed.trim());
 
                 const response = await fetch('/v1/atelier/generate', {
                     method: 'POST',
@@ -583,9 +609,9 @@ function Generator() {
 
                 const data = await response.json();
                 
-                if (data.image_url) {
+                if (data.success && data.result) {
                     const newImage = {
-                        url: data.image_url,
+                        url: data.result,
                         prompt: prompt.trim(),
                         size,
                         model,
@@ -599,7 +625,7 @@ function Generator() {
                     
                     updateSessionStorage('images', newImages);
                 } else {
-                    throw new Error('No image URL received from server.');
+                    throw new Error('Image generation failed');
                 }
             } catch (error) {
                 console.error(`Error generating image ${index + 1}:`, error);
@@ -620,12 +646,31 @@ function Generator() {
   };
 
   const downloadImage = (imageUrl, fileName) => {
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // For base64 images
+    if (imageUrl.startsWith('data:image')) {
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // For regular URLs
+    fetch(imageUrl)
+      .then(response => response.blob())
+      .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      })
+      .catch(error => console.error('Error downloading image:', error));
   };
 
   const enlargeImage = (index) => {
@@ -648,13 +693,19 @@ function Generator() {
   };
 
   const handleSeedChange = (e) => {
-    const newValue = e.target.value.replace(/[^0-9]/g, '');
-    setSeed(newValue);
-    if (newValue === '') {
+    const newValue = e.target.value;
+    // Only allow positive numbers or -1
+    const sanitizedValue = newValue === '-1' ? '-1' : newValue.replace(/[^0-9]/g, '');
+    setSeed(sanitizedValue);
+    if (sanitizedValue === '') {
       sessionStorage.removeItem('atelier_seed');
     } else {
-      sessionStorage.setItem('atelier_seed', newValue);
+      sessionStorage.setItem('atelier_seed', sanitizedValue);
     }
+  };
+
+  const handleImageClick = (image) => {
+    setEnlargedImageIndex(image);
   };
 
   return (
@@ -682,8 +733,8 @@ function Generator() {
         </div>
       </header>
       <div className="content">
-        <RainbowText text="Atelier Atelier Gen" isAnimating={isGenerating} />
-        <div className="copyright">© 2023-2024 Ikmal Said</div>
+        <RainbowText text="Atelier Image Generator" isAnimating={isGenerating} />
+        <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
         <div className="input-group">
           <textarea
             ref={textareaRef}
@@ -704,49 +755,69 @@ function Generator() {
           />
         </div>
         <div className="controls-group">
-          <div className="select-container">
-            <div className="control-label">Style</div>
-            <select value={style} onChange={(e) => setStyle(e.target.value)}>
-              {styleOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
+          <div className="controls-row">
+            <div className="select-container">
+              <div className="control-label">Model</div>
+              <select value={model} onChange={(e) => setModel(e.target.value)}>
+                {modelOptions.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </div>
+            <div className="select-container">
+              <div className="control-label">Size</div>
+              <select value={size} onChange={(e) => setSize(e.target.value)}>
+                {sizeOptions.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </div>
+            <div className="select-container">
+              <div className="control-label">Quantity</div>
+              <select value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))}>
+                {Quantity.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="select-container">
+              <div className="control-label">Seed</div>
+              <input
+                type="text"
+                value={seed}
+                onChange={handleSeedChange}
+                placeholder="Seed (optional)"
+                className="seed-input"
+              />
+            </div>
           </div>
+          <div className="controls-row">
           <div className="select-container">
-            <div className="control-label">Model</div>
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              {modelOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
-          </div>
-          <div className="select-container">
-            <div className="control-label">Size</div>
-            <select value={size} onChange={(e) => setSize(e.target.value)}>
-              {sizeOptions.map((value) => (
-                <option key={value} value={value}>{value}</option>
-              ))}
-            </select>
-          </div>
-          <div className="select-container">
-            <div className="control-label">Quantity</div>
-            <select value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))}>
-              {Quantity.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="select-container">
-            <div className="control-label">Seed</div>
-            <input
-              type="text"
-              value={seed}
-              onChange={handleSeedChange}
-              placeholder="Seed (optional)"
-              className="seed-input"
-            />
+              <div className="control-label">Style</div>
+              <select value={style} onChange={(e) => setStyle(e.target.value)}>
+                {styleOptions.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </div>
+            <div className="select-container">
+              <div className="control-label">SVI Lora</div>
+              <select value={sviLora} onChange={(e) => setSviLora(e.target.value)}>
+                {sviLoraOptions.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </div>
+            <div className="select-container">
+              <div className="control-label">Flux Lora</div>
+              <select value={fluxLora} onChange={(e) => setFluxLora(e.target.value)}>
+                {fluxLoraOptions.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <button onClick={generateImages} disabled={isGenerating} className="generate-button">
@@ -994,19 +1065,30 @@ const styles = `
   }
   .controls-group {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 15px;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .controls-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
   }
 
   .select-container {
     flex: 1;
-    min-width: 120px;
-    position: relative;
+    min-width: 0;
+  }
+
+  .select-container select,
+  .select-container input {
+    width: 100%;
   }
 
   .select-container select {
-    width: 100%;
     padding: 8px 30px 8px 10px;
     font-size: 15px;
     background-color: #333;

@@ -11,11 +11,9 @@ A hostable and comprehensive SaaS for Atelier clients.
 
 ## Features
 - User authentication and session management
-- Image generation with Atelier models
-- Image upscaling and variation generation
+- Image generation with SOTA Atelier models
 - Credit system for service usage
 - User gallery and history tracking
-- Theme customization
 - Password recovery system
 - Archive downloads for user galleries
 

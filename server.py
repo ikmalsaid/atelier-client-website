@@ -5,7 +5,7 @@ from collections import OrderedDict
 from flask_limiter import Limiter
 from threading import Timer
 from functools import wraps
-from PIL import Image
+from io import BytesIO
 import tempfile
 import zipfile
 import base64
@@ -14,11 +14,11 @@ import uuid
 import os
 
 from atelier_client import AtelierClient
-from database import DBase
-from credits import Credits
+from utils.database import Database
+from utils.credits import Credits
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
+app.secret_key = 'xxxxxx'
 
 limiter = Limiter(
     app=app,
@@ -28,27 +28,19 @@ limiter = Limiter(
 
 app.permanent_session_lifetime = timedelta(hours=1)
 
-sap = AtelierClient()
-sdb = DBase()
+sap = AtelierClient(save_as='pil')
+sdb = Database()
 scr = Credits()
 
 # Cost Information ###################################################
 
 costs = {
-    'generate': 1,
-    'upscale': 1,
-    'variation': 1,
-    'atelier': 1,
-    'guide': 1
+    'atelier': 1
 }
 
 menus= OrderedDict([
     ('💰 Topup', "/topup"),
-    ('🎨 Atelier Gen', "/atelier"),
-    ('🎯 Atelier Guide', "/guide"),
-    ('✨ Generator', "/generator"),
-    ('🔍 Upscale', "/upscaler"),
-    ('🔄 Variation', "/variation"),
+    ('🎨 Generator', "/generator"),
     ('🖼️ Gallery', "/gallery"),
     ('📜 History', "/history"),
     ('⚙️ Settings', "/settings")
@@ -82,38 +74,6 @@ def login_required(f):
 
 # Utility Functions ###################################################
 
-def get_temp_file_path():
-    """Return temporary file path"""
-    return os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.png")
-
-def create_temp_image_file(image_data):
-    """Create temporary file from base64 image data and return file path"""
-    image_bytes = base64.b64decode(image_data.split(',')[1] if ',' in image_data else image_data)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-        temp_file.write(image_bytes)
-        return temp_file.name
-
-def get_image_url(file_path):
-    """Convert file path to encoded URL for serving images"""
-    if file_path:
-        relative_path = os.path.relpath(file_path, start=sap.save_dir)
-        relative_path = relative_path.replace('\\', '/')
-        encoded_path = base64.urlsafe_b64encode(relative_path.encode()).decode().rstrip('=')
-        return f"/v1/image/{encoded_path}"
-    return None
-
-def decode_image_path(encoded_path):
-    """Decode URL-safe base64 encoded path back to original path"""
-    # Add padding characters back if needed
-    padding = 4 - (len(encoded_path) % 4)
-    if padding != 4:
-        encoded_path += '=' * padding
-    try:
-        decoded_path = base64.urlsafe_b64decode(encoded_path).decode()
-        return decoded_path
-    except:
-        return None
-
 def get_current_timestamp():
     """Return current timestamp in dd/mm/yyyy HH:MM:SS format"""
     return datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -135,54 +95,9 @@ def increment_user_stats(user_id, feature):
 def favicon():
     """Serve favicon with caching headers"""
     response = send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-    
     response.headers['Cache-Control'] = 'public, max-age=31536000'  # Cache for 1 year
     response.headers['Expires'] = (datetime.now() + timedelta(days=365)).strftime('%a, %d %b %Y %H:%M:%S GMT')
-    
     return response
-    
-@app.route('/v1/image/<path:encoded_filename>')
-@login_required
-@limiter.exempt
-def serve_image(encoded_filename):
-    """Serve image files with caching and conditional GET support"""
-    filename = decode_image_path(encoded_filename)
-    if not filename:
-        return 'Not Found', 404
-        
-    file_path = os.path.join(sap.save_dir, filename)
-    if os.path.isfile(file_path):
-        # Get file's last modification time and size for ETag
-        last_modified = datetime.fromtimestamp(os.path.getmtime(file_path))
-        file_size = os.path.getsize(file_path)
-        etag = f'"{file_size}-{int(last_modified.timestamp())}"'
-        
-        # Check If-None-Match header (ETag)
-        if_none_match = request.headers.get('If-None-Match')
-        if if_none_match and if_none_match == etag:
-            return '', 304
-        
-        # Check If-Modified-Since header
-        if_modified_since = request.headers.get('If-Modified-Since')
-        if if_modified_since:
-            try:
-                if_modified_since = datetime.strptime(if_modified_since, '%a, %d %b %Y %H:%M:%S GMT')
-                if last_modified <= if_modified_since:
-                    return '', 304
-            except ValueError:
-                pass  # Invalid date format, ignore
-        
-        response = send_file(file_path)
-        
-        # Set cache control headers
-        response.headers['Cache-Control'] = 'public, max-age=31536000'  # 1 year
-        response.headers['Last-Modified'] = last_modified.strftime('%a, %d %b %Y %H:%M:%S GMT')
-        response.headers['ETag'] = etag
-        response.headers['Expires'] = (datetime.now() + timedelta(days=365)).strftime('%a, %d %b %Y %H:%M:%S GMT')
-        
-        return response
-    else:
-        return 'Not Found', 404
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
@@ -199,7 +114,7 @@ def ratelimit_handler(e):
 @limiter.exempt
 def get_image_styles():
     """Return available image style presets"""
-    styles = sap.list_sty_styles
+    styles = sap.list_atr_styles
     return jsonify({'styles': styles})
 
 @app.route('/v1/presets/sizes')
@@ -218,14 +133,6 @@ def get_generator_models():
     models = sap.list_atr_models
     return jsonify({'models': models})
 
-@app.route('/v1/presets/variation')
-@login_required
-@limiter.exempt
-def get_variation_models():
-    """Return available variation model options"""
-    models = sap.list_ime_variations
-    return jsonify({'models': models})
-
 @app.route('/v1/presets/atelier/sizes')
 @login_required
 @limiter.exempt
@@ -242,13 +149,21 @@ def get_atelier_models():
     models = sap.list_atr_models
     return jsonify({'models': models})
 
+@app.route('/v1/presets/atelier/models/svi')
+@login_required
+@limiter.exempt
+def get_atelier_models_svi():
+    """Return available Atelier model options"""
+    models = sap.list_atr_models_svi
+    return jsonify({'models': models})
+
 @app.route('/v1/presets/atelier/lora/svi')
 @login_required
 @limiter.exempt
 def get_atelier_lora_svi():
     """Return available Atelier LoRA styles"""
     lora = sap.list_atr_lora_svi
-    return jsonify({'atelier_styles': lora})
+    return jsonify({'svi_loras': lora})
 
 @app.route('/v1/presets/atelier/lora/flux')
 @login_required
@@ -256,15 +171,7 @@ def get_atelier_lora_svi():
 def get_atelier_lora_flux():
     """Return available Atelier LoRA styles"""
     lora = sap.list_atr_lora_flux
-    return jsonify({'atelier_styles': lora})
-
-@app.route('/v1/presets/atelier/controls')
-@login_required
-@limiter.exempt
-def get_atelier_controls():
-    """Return available Atelier control options"""
-    controls = sap.list_atr_guide
-    return jsonify({'atelier_controls': controls})
+    return jsonify({'flux_loras': lora})
 
 @app.route('/v1/presets/menu')
 @login_required
@@ -273,36 +180,6 @@ def get_menu_items():
     """Return numbered menu items and their routes"""
     return jsonify({'menu_items': {f"{str(i).zfill(2)}. {k}":
         v for i, (k, v) in enumerate(menus.items(), 1)}})
-
-# Web Routes - Theme Settings ###########################################
-
-@app.route('/v1/user/settings/theme')
-@login_required
-@limiter.exempt
-def get_theme():
-    """Get user's theme preferences"""
-    user_id = session['user_id']
-    theme = sdb.get_theme(user_id)
-    return jsonify(theme)   
- 
-@app.route('/v1/user/settings/theme/update', methods=['POST'])
-@login_required
-@limiter.exempt
-def set_theme():
-    """Update user's theme preferences"""
-    user_id = session['user_id']
-    color = request.json.get('color')
-    font = request.json.get('font')
-    
-    if sdb.set_theme(user_id, color=color, font=font):
-        return jsonify({
-            'success': True,
-            'message': 'Theme updated successfully'
-        })
-    return jsonify({
-        'success': False,
-        'message': 'Failed to update theme'
-    })
 
 # Web Routes - Credit Management #######################################
 
@@ -562,7 +439,7 @@ def clear_history():
 @app.route('/v1/user/archive/create', methods=['POST'])
 @login_required
 def create_archive():
-    """Create ZIP archive of user's gallery images"""
+    """Create ZIP archive of user's gallery base64 images"""
     user_id = session['user_id']
     password = request.json.get('current_password')
     
@@ -573,19 +450,25 @@ def create_archive():
         })
     
     download_id = f"{session['user']}_{str(uuid.uuid4())}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-    
-    # Use system temp directory instead of custom folder
     zip_path = os.path.join(tempfile.gettempdir(), f'{download_id}.zip')
     
     gallery = sdb.get_user_gallery(user_id)
     
     with zipfile.ZipFile(zip_path, 'w') as zipf:
         for _, _, _, timestamp, result_url in gallery:
-            if result_url:
-                file_path = os.path.join(sap.save_dir, decode_image_path(result_url.split('/')[-1]))
-                if os.path.exists(file_path):
-                    filename = f"{timestamp.replace('/', '-').replace(':', '-')}_{os.path.basename(file_path)}"
-                    zipf.write(file_path, filename)
+            if result_url and result_url.startswith('data:image'):
+                try:
+                    # Extract the base64 data after the comma
+                    base64_data = result_url.split(',')[1]
+                    # Decode base64 to binary
+                    image_data = base64.b64decode(base64_data)
+                    filename = f"{timestamp.replace('/', '-').replace(':', '-').replace(' ', '_')}.webp"
+                    # Write binary data directly to zip
+                    zipf.writestr(filename, image_data)
+                
+                except Exception as e:
+                    print(f"Error processing image: {e}")
+                    continue
     
     sdb.add_user_history(
         user_id=user_id,
@@ -781,187 +664,88 @@ def logout():
 
 # Web Routes - Image Processing ###########################################
 
+def __data_url_processor(pil_image) -> str:
+    """Convert PIL Image to base64 data URL."""
+    try:
+        img_io = BytesIO()
+        pil_image.save(img_io, format='WEBP', quality=90)
+        img_io.seek(0)
+        img_base64 = base64.b64encode(img_io.getvalue()).decode()
+        
+        sap.logger.info(f"Created data URL from PIL object!")
+        return f"data:image/png;base64,{img_base64}"
+    
+    except Exception as e:
+        sap.logger.error(f"Error in data_url_processor: {e}")
+        return None
+
 @app.route('/v1/atelier/generate', methods=['POST'])
 @login_required
-def generate_atelier(feature='Atelier Gen'):
-    """Generate image using Atelier model"""
-    user_id = session['user_id']
+def generate_atelier(feature='Image Generator'):
+    """
+    Handle image generation requests via form data.
 
-    prompt = request.form.get('prompt')
-    negative = request.form.get('negative_prompt')
-    size = request.form.get('size')
-    model = request.form.get('model')
-    style = request.form.get('style')
-    seed = request.form.get('seed', None)
-    
-    detail = f"Style: {style} | Model: {model} | Size: {size} | Seed: {seed}"
-    
-    generator = sap.image_generator(
-        prompt=prompt, 
-        negative_prompt=negative, 
-        image_size=size, 
-        model_name=model, 
-        style_name=style,
-        image_seed=seed
-    )
-    
-    result = generator
-
-    if result is not None:
-        status = 'success'
-    else:
-        status = 'failed'
-
-    result_url = get_image_url(result) if result else None
-    timestamp = get_current_timestamp()
-    
-    sdb.add_user_history(
-        user_id=user_id, 
-        type=feature, 
-        task=prompt, 
-        detail=detail,
-        status=status, 
-        timestamp=timestamp, 
-        result_url=result_url
-    )
-    
-    if result:
-        increment_user_stats(user_id, 'atelier')
-        return jsonify({
-            'image_url': request.url_root.rstrip('/') + result_url,
-            'credits': sdb.get_user_credits(user_id),
-            'timestamp': timestamp,
-            'seed': seed
-        })
-    else:
-        return jsonify({'error': 'Image generation failed. Please try again.'}), 400
-
-@app.route('/v1/atelier/guide', methods=['POST'])
-@login_required
-def guide_image(feature='Atelier Guide'):
-    """Process image guidance request with Atelier"""
-    user_id = session['user_id']
-    
-    image = request.files['image']
-    prompt = request.form.get('prompt')
-    negative = request.form.get('negative_prompt')
-    size = request.form.get('size')
-    model = request.form.get('model')
-    style = request.form.get('style')
-    guide = request.form.get('guide_type')
-    lora = request.form.get('lora')
-    strength = request.form.get('strength')
-    seed = request.form.get('seed', None)
-    
-    detail = f"Style: {style} | Model: {model} | Size: {size} | Strength: {strength} | Guidance: {guide} | Lora: {lora} | Seed: {seed}"
-
-    temp_file_path = get_temp_file_path()
-    image.save(temp_file_path)
-    
-    generator = sap.image_guidance(
-        guide_image=temp_file_path, 
-        guide_type=guide,
-        prompt=prompt,
-        negative_prompt=negative,
-        image_size=size,
-        model_name=model,
-        guide_strength=strength,
-        style_v4=lora,
-        style_name=style,
-        image_seed=seed
-    )
-    
-    result = generator
-    os.unlink(temp_file_path)
-    
-    if result is not None:
-        status = 'success'
-    else:
-        status = 'failed'
-        
-    result_url = get_image_url(result) if result else None
-    timestamp = get_current_timestamp()
-    
-    sdb.add_user_history(
-        user_id=user_id, 
-        type=feature, 
-        task=prompt if prompt else 'No Prompt Provided', 
-        detail=detail,
-        status=status, 
-        timestamp=timestamp, 
-        result_url=result_url
-    )
-
-    if result is not None:
-        increment_user_stats(user_id, 'guide')
-        return jsonify({
-            'image_url': request.url_root.rstrip('/') + result_url,
-            'credits': sdb.get_user_credits(user_id),
-            'timestamp': timestamp,
-            'seed': seed
-        })
-    else:
-        return jsonify({'error': 'Image guidance failed. Please try again.'}), 400
-
-
-@app.route('/v1/legacy/upscale', methods=['POST'])
-@login_required
-def upscale_image(feature='Upscaler'):
-    """Upscale uploaded image"""
-    user_id = session['user_id']
-    
-    image = request.files['image']
-    prompt = "User uploaded image"
-    original_res = request.form.get('originalRes', 'Unknown')
-    detail = f"Original resolution: {original_res}"
-    
-    temp_file_path = get_temp_file_path()
-    image.save(temp_file_path)
-    
-    generator = sap.image_upscaler(
-        image=temp_file_path
-    )
-    
+    Form Parameters:
+    - prompt (str, required): User's positive prompt
+    - negative_prompt (str, optional): User's negative prompt
+    - model_name (str, optional): Name of the model to use (default: "flux-turbo")
+    - image_size (str, optional): Desired image size ratio (default: "1:1")
+    - lora_svi (str, optional): Name of the LoRA SVI preset (default: "none")
+    - lora_flux (str, optional): Name of the LoRA Flux preset (default: "none")
+    - image_seed (int, optional): Seed for image generation (default: 0)
+    - style_name (str, optional): Name of the style preset (default: "none")
+    """
     try:
-        result = next(generator)
-    except StopIteration:
-        result = None
-    except Exception as e:
-        print(f"Error upscaling image: {e}")
-        result = None
+        user_id = session['user_id']
         
-    os.unlink(temp_file_path) 
-    
-    if result is not None:
-        with Image.open(result) as img:
-            upscaled_res = f"{img.width} x {img.height}"
-            detail = f"{detail} | Upscaled resolution: {upscaled_res}"
-            status = 'success'
-    else:
-        status = 'failed'
-    
-    result_url = get_image_url(result) if result else None
-    timestamp = get_current_timestamp()
+        data = {
+            'prompt': request.form.get('prompt'),
+            'negative_prompt': request.form.get('negative_prompt', ''),
+            'model_name': request.form.get('model_name', 'flux-turbo'),
+            'image_size': request.form.get('image_size', '1:1'),
+            'lora_svi': request.form.get('lora_svi', 'none'),
+            'lora_flux': request.form.get('lora_flux', 'none'),
+            'image_seed': request.form.get('image_seed', 0),
+            'style_name': request.form.get('style_name', 'none')
+        }
+        
+        task = data['prompt']
+        detail = f"Style: {data['style_name']} | Model: {data['model_name']} | Size: {data['image_size']} | Seed: {data['image_seed']}"
 
-    sdb.add_user_history(
-        user_id=user_id,
-        type=feature, 
-        task=prompt, 
-        detail=detail,
-        status=status, 
-        timestamp=timestamp, 
-        result_url=result_url
-    )
-    
-    if result:
-        increment_user_stats(user_id, 'upscale')
+        if not data['prompt']:
+            raise Exception("Missing prompt")
+
+        result = sap.image_generate(**data)
+        if not result:
+            raise Exception("Generation failed")
+
+        data_url = __data_url_processor(result)
+        if not data_url:
+            raise Exception("Failed to process image")
+        
+        sdb.add_user_history(
+            user_id=user_id, 
+            type=feature, 
+            task=task, 
+            detail=detail,
+            status='success', 
+            timestamp=get_current_timestamp(), 
+            result_url=data_url
+        )
+        
+        increment_user_stats(user_id, 'atelier')
+
         return jsonify({
-            'image_url': request.url_root.rstrip('/') + result_url,
-            'credits': sdb.get_user_credits(user_id),
-            'timestamp': timestamp
+            "success": True, 
+            "result": data_url,
+            "credits": sdb.get_user_credits(user_id),
+            "timestamp": get_current_timestamp(),
+            "seed": data['image_seed']
         })
-    else:
-        return jsonify({'error': 'Image upscale failed. Please try again.'}), 400
+
+    except Exception as e:
+        sap.logger.error(f"Error in image_generate_api: {e}")
+        return jsonify({"success": False, "error": str(e)}), 400
 
 # Web Routes - Page Rendering ###########################################
 
@@ -977,18 +761,6 @@ def status():
     """Render status page"""
     return render_template('status.html')
 
-@app.route('/generator')
-@login_required
-def generator():
-    """Render generator page"""
-    return render_template('generator.html')
-
-@app.route('/upscaler')
-@login_required
-def upscaler():
-    """Render upscaler page"""
-    return render_template('upscaler.html')
-
 @app.route('/history')
 @login_required
 def user_history_page():
@@ -1000,12 +772,6 @@ def user_history_page():
 def topup_page():
     """Render credit top-up page"""
     return render_template('topup.html')
-
-@app.route('/variation')
-@login_required
-def variation():
-    """Render variation page"""
-    return render_template('variation.html')
 
 @app.route('/gallery')
 @login_required
@@ -1019,23 +785,11 @@ def settings():
     """Render settings page"""
     return render_template('settings.html')
 
-@app.route('/atelier')
+@app.route('/generator')
 @login_required
-def atelier():
+def generator():
     """Render Atelier page"""
-    return render_template('atelier.html')
-
-@app.route('/guide')
-@login_required
-def guide():
-    """Render guidance page"""
-    return render_template('guide.html')
-
-@app.route('/public')
-@login_required
-def public():
-    """Render public gallery page"""
-    return render_template('public.html')
+    return render_template('generator.html')
 
 # Main Entry Point #######################################################
 

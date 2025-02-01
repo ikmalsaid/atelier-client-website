@@ -470,7 +470,7 @@ function Gallery() {
 
       <div className="content">
         <RainbowText text={`Gallery for ${username}`} isAnimating={false} />
-        <div className="copyright">© 2023-2024 Ikmal Said</div>
+        <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
         
         <GalleryControls 
           onSortChange={setSortBy}

@@ -264,7 +264,7 @@ function Home() {
       {/* Welcome Section */}
       <div id="welcomeSection" style={{ display: activeSection === 'welcomeSection' ? 'block' : 'none' }}>
         <h1>Welcome to Atelier!</h1>
-        <div className="copyright">© 2023-2024 Ikmal Said</div>
+        <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
         <div className="features">
           <FeatureItem icon="fa-users" number="30M+" text="Active Users" />
           <FeatureItem icon="fa-wand-magic-sparkles" number="3.5M+" text="Daily Generations" />
@@ -277,7 +277,7 @@ function Home() {
       {/* Login Section */}
       <div id="loginSection" style={{ display: activeSection === 'loginSection' ? 'block' : 'none' }}>
         <h1>Login to Atelier</h1>
-        <div className="copyright">© 2023-2024 Ikmal Said</div>
+        <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
         {loginError && <div className="error">{loginError}</div>}
         <form id="loginForm" onSubmit={handleLogin}>
           <input type="text" name="username" placeholder="Username" required />
@@ -311,7 +311,7 @@ function Home() {
         {!showRecoveryKey ? (
           <React.Fragment>
             <h1>Sign Up for Atelier</h1>
-            <div className="copyright">© 2023-2024 Ikmal Said</div>
+            <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
             {registerError && <div className="error">{registerError}</div>}
             <div className="register-container">
               <div className="register-form">
@@ -385,7 +385,7 @@ function Home() {
         ) : (
           <div className="recovery-key-notice">
             <h1>Save Your Recovery Key</h1>
-            <div className="copyright">© 2023-2024 Ikmal Said</div>
+            <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
             <div className="key-display">
               <code>{registrationKey}</code>
               <button 
@@ -409,7 +409,7 @@ function Home() {
       {/* Password Reset Section */}
       <div id="resetSection" style={{ display: activeSection === 'resetSection' ? 'block' : 'none' }}>
         <h1>Reset Password</h1>
-        <div className="copyright">© 2023-2024 Ikmal Said</div>
+        <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
         {resetError && <div className="error">{resetError}</div>}
         {resetMessage && <div className="success" dangerouslySetInnerHTML={{__html: resetMessage}} />}
         <div id="resetError" className="error"></div>

@@ -358,7 +358,7 @@ function UserHistory() {
 
       {/* Title and Copyright */}
       <RainbowText text={`History for ${username}`} isAnimating={false} />
-      <div className="copyright">© 2023-2024 Ikmal Said</div>
+      <div className="copyright">Copyright (C) 2025 Ikmal Said. All rights reserved</div>
 
       {/* History List */}
       <div className="history-list">

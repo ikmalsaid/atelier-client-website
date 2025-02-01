@@ -2,13 +2,13 @@ import random
 import string
 import argparse
 from datetime import datetime
-from database import DBase
+from utils.database import Database
 
 class Credits:
-    """Atelier Web Service Credits System. Copyright (C) 2024 Ikmal Said. All rights reserved."""
+    """Atelier Credits System. Copyright (C) 2024 Ikmal Said. All rights reserved."""
     def __init__(self):
         """Initialize credit system with predefined bundles and empty pin codes"""
-        self.db = DBase()
+        self.db = Database()
         
         self.currency = 'MYR'
         
@@ -59,7 +59,7 @@ class Credits:
                 user_id=user_id,
                 type='Credit Topup',
                 task=f'Attempted to purchase {self.credit_bundles[bundle_size]["credits"]} credits',
-                detail=f'Package: {bundle_size} | Price: {self.currency + self.credit_bundles[bundle_size]["price"]}',
+                detail=f'Package: {bundle_size} | Price: {self.currency}{self.credit_bundles[bundle_size]["price"]:.2f}',
                 status='failed',
                 timestamp=self.get_current_timestamp(),
                 result_url=None
@@ -72,7 +72,7 @@ class Credits:
             user_id=user_id,
             type='Credit Topup',
             task=f'Purchased {self.credit_bundles[bundle_size]["credits"]} credits',
-            detail=f'Package: {bundle_size} | Price: {self.currency + self.credit_bundles[bundle_size]["price"]} | PIN Code: {pin_code}',
+            detail=f'Package: {bundle_size} | Price: {self.currency}{self.credit_bundles[bundle_size]["price"]:.2f} | PIN Code: {pin_code}',
             status='success',
             timestamp=self.get_current_timestamp(),
             result_url=None
@@ -95,7 +95,7 @@ class Credits:
             user_id=user_id,
             type='Credit Topup',
             task=f'Redeemed {credits_to_add} credits',
-            detail=f'Package: {bundle_size} | Price: {self.currency + self.credit_bundles[bundle_size]["price"]}',
+            detail=f'Package: {bundle_size} | Price: {self.currency}{self.credit_bundles[bundle_size]["price"]:.2f}',
             status='success',
             timestamp=self.get_current_timestamp(),
             result_url=None

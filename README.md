@@ -1,6 +1,8 @@
 # Atelier Client Website
 A hostable and comprehensive SaaS for Atelier clients.
 
+![Atelier Client Website](assets/grid.webp)
+
 ## Tech Stack
 - **Backend**: Python, Flask
 - **Frontend**: React.js

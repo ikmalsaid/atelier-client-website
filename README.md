@@ -49,8 +49,8 @@ pip install -r requirements.txt
 ```txt
 flask
 flask-limiter
-atelier-client
 python-dateutil
+atelier-client
 ```
 
 ## Running Locally

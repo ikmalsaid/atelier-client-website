@@ -5,9 +5,6 @@ A hostable and comprehensive SaaS for Atelier clients.
 - **Backend**: Python, Flask
 - **Frontend**: React.js
 - **Database**: SQLite
-- **Authentication**: Flask Session Management
-- **Image Processing**: PIL (Python Imaging Library)
-- **Rate Limiting**: Flask-Limiter
 
 ## Features
 - User authentication and session management
@@ -16,6 +13,7 @@ A hostable and comprehensive SaaS for Atelier clients.
 - User gallery and history tracking
 - Password recovery system
 - Archive downloads for user galleries
+- and more...
 
 ## Prerequisites
 - Python 3.8+
